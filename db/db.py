@@ -1242,18 +1242,18 @@ class DB(object):
         else:
             q = self._query_templates['system']['schema_with_system']
 
-        tables = set()
         self.cur.execute(q)
         cols = []
-        tables = {}
+        columnsets = {}
         schemas = {}
         for (table_name, column_name, data_type, schema) in self.cur:
-            if table_name not in tables:
-                tables[table_name] = []
-            tables[table_name].append(Column(self.con, self._query_templates, table_name, column_name, data_type, self.keys_per_column, schema))
-            schemas[table_name] = schema
+            tableid = (table_name,schema)
+            if tableid not in columnsets:
+                columnsets[tableid] = []
+            columnsets[tableid].append(Column(self.con, self._query_templates, table_name, column_name, data_type, self.keys_per_column, schema))
+            schemas[tableid] = schema
 
-        self.tables = TableSet([Table(self.con, self._query_templates, t, tables[t], keys_per_column=self.keys_per_column, schema=schemas[t]) for t in sorted(tables.keys())])
+        self.tables = TableSet([Table(self.con, self._query_templates, tid[0], columnsets[tid], keys_per_column=self.keys_per_column, schema=tid[1]) for tid in sorted(columnsets.keys())])
         sys.stderr.write("done!\n")
 
     def _try_command(self, cmd):

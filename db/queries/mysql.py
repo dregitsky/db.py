@@ -67,7 +67,8 @@ queries = {
         where
             table_name = '{table}'
             and column_name = '{column}'
-            and referenced_column_name IS NOT NULL;
+            and referenced_column_name IS NOT NULL
+            and table_schema = '{schema}';
         """,
         "ref_keys_for_table": """
             select
