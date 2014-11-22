@@ -74,13 +74,14 @@ class Column(object):
     can use it to do some basic DB exploration and you can also use it to
     execute simple queries.
     """
-    def __init__(self, con, query_templates, table, name, dtype, keys_per_column):
+    def __init__(self, con, query_templates, table, name, dtype, keys_per_column, schema):
         self._con = con
         self._query_templates = query_templates
         self.table = table
         self.name = name
         self.type = dtype
         self.keys_per_column = keys_per_column
+        self.schema = schema
 
         self.foreign_keys = []
         self.ref_keys = []
@@ -256,7 +257,7 @@ class Table(object):
     A Table is an in-memory reference to a table in a database. You can use it to get more info
     about the columns, schema, etc. of a table and you can also use it to execute queries.
     """
-    def __init__(self, con, query_templates, name, cols, keys_per_column):
+    def __init__(self, con, query_templates, name, cols, keys_per_column, schema):
         self.name = name
         self._con = con
         self._cur = con.cursor()
@@ -264,6 +265,7 @@ class Table(object):
         self.foreign_keys = []
         self.ref_keys = []
         self.keys_per_column = keys_per_column
+        self.schema = schema
 
         self._columns = cols
         for col in cols:
@@ -272,20 +274,20 @@ class Table(object):
                 attr = "_" + col.name
             setattr(self, attr, col)
 
-        self._cur.execute(self._query_templates['system']['foreign_keys_for_table'].format(table=self.name))
-        for (column_name, foreign_table, foreign_column) in self._cur:
+        self._cur.execute(self._query_templates['system']['foreign_keys_for_table'].format(table=self.name,schema=self.schema))
+        for (column_name, foreign_table, foreign_column, foreign_schema) in self._cur:
             col = getattr(self, column_name)
-            foreign_key = Column(con, queries_templates, foreign_table, foreign_column, col.type, self.keys_per_column)
+            foreign_key = Column(con, queries_templates, foreign_table, foreign_column, col.type, self.keys_per_column, foreign_schema)
             self.foreign_keys.append(foreign_key)
             col.foreign_keys.append(foreign_key)
             setattr(self, column_name, col)
 
         self.foreign_keys = ColumnSet(self.foreign_keys)
 
-        self._cur.execute(self._query_templates['system']['ref_keys_for_table'].format(table=self.name))
-        for (column_name, ref_table, ref_column) in self._cur:
+        self._cur.execute(self._query_templates['system']['ref_keys_for_table'].format(table=self.name,schema=self.schema))
+        for (column_name, ref_table, ref_column, ref_schema) in self._cur:
             col = getattr(self, column_name)
-            ref_key = Column(con, queries_templates, ref_table, ref_column, col.type, self.keys_per_column)
+            ref_key = Column(con, queries_templates, ref_table, ref_column, col.type, self.keys_per_column, ref_schema)
             self.ref_keys.append(ref_key)
             col.ref_keys.append(ref_key)
             setattr(self, column_name, col)
@@ -1233,8 +1235,8 @@ class DB(object):
         """
 
         sys.stderr.write("Refreshing schema. Please wait...")
-        if self.schemas is not None and isinstance(self.schemas, list) and 'schema_specified' in self._query_templates:
-            q = self._query_templates['system']['schema_specified'] % str(self.schemas)
+        if self.schemas is not None and isinstance(self.schemas, list) and 'schema_specified' in self._query_templates['system']:
+            q = self._query_templates['system']['schema_specified'].format(schema=str(self.schemas)[1:-1])
         elif exclude_system_tables==True:
             q = self._query_templates['system']['schema_no_system']
         else:
@@ -1244,12 +1246,14 @@ class DB(object):
         self.cur.execute(q)
         cols = []
         tables = {}
-        for (table_name, column_name, data_type)in self.cur:
+        schemas = {}
+        for (table_name, column_name, data_type, schema) in self.cur:
             if table_name not in tables:
                 tables[table_name] = []
-            tables[table_name].append(Column(self.con, self._query_templates, table_name, column_name, data_type, self.keys_per_column))
+            tables[table_name].append(Column(self.con, self._query_templates, table_name, column_name, data_type, self.keys_per_column, schema))
+            schemas[table_name] = schema
 
-        self.tables = TableSet([Table(self.con, self._query_templates, t, tables[t], keys_per_column=self.keys_per_column) for t in sorted(tables.keys())])
+        self.tables = TableSet([Table(self.con, self._query_templates, t, tables[t], keys_per_column=self.keys_per_column, schema=schemas[t]) for t in sorted(tables.keys())])
         sys.stderr.write("done!\n")
 
     def _try_command(self, cmd):

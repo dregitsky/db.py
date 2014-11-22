@@ -18,6 +18,7 @@ queries = {
                     table_name
                     , column_name
                     , data_type
+                    , table_schema
                 from
                     information_schema.columns
                 where
@@ -28,6 +29,7 @@ queries = {
                     table_name
                     , column_name
                     , data_type
+                    , table_schema
                 from
                     information_schema.columns;
                 """,
@@ -35,27 +37,31 @@ queries = {
                 select
                     table_name
                     , column_name
-                    , udt_name
+                    , data_type
+                    , table_schema
                 from
                     information_schema.columns
-                where table_schema in ({table});
+                where table_schema in ({schema});
                 """,
         "foreign_keys_for_table": """
         select
             column_name
             , referenced_table_name
             , referenced_column_name
+            , referenced_table_schema
         from
             information_schema.key_column_usage
         where
             table_name = '{table}'
-            and referenced_column_name IS NOT NULL;
+            and referenced_column_name IS NOT NULL
+            and table_schema = '{schema}';
         """,
         "foreign_keys_for_column": """
         select
             column_name
             , referenced_table_name
             , referenced_column_name
+            , referenced_table_schema
         from
             information_schema.key_column_usage
         where
@@ -68,11 +74,13 @@ queries = {
                 referenced_column_name
                 , table_name
                 , column_name
+                , table_schema
             from
                 information_schema.key_column_usage
             where
                 referenced_table_name = '{table}'
-                and referenced_column_name IS NOT NULL;
+                and referenced_column_name IS NOT NULL
+                and table_schema = '{schema}';
         """
     }
 }
